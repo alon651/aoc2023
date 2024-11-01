@@ -26,7 +26,40 @@ fn part1_logic(input: &str) -> i64 {
 }
 
 pub fn part2() -> i64 {
-    return 1;
+    part2_logic(INPUT)
+}
+
+fn part2_logic(input: &str) -> i64 {
+    slow(input)
+}
+
+fn slow(input: &str) -> i64{
+    let (seeds_input, maps) = parse_input(input);
+
+    let seeds: Vec<i64> = seeds_input
+        .chunks(2)
+        .flat_map(|pair| match pair {
+            [start, count] => (*start..start + count).collect::<Vec<_>>(),
+            _ => vec![],
+        })
+        .collect();
+
+    seeds
+        .iter()
+        .map(|seed| {
+            let mut current = *seed;
+            maps.iter().for_each(|layer| {
+                if let Some(map) = layer
+                    .iter()
+                    .find(|map| map.start_index <= current && map.end_index >= current)
+                {
+                    current += map.offset;
+                }
+            });
+            current
+        })
+        .min()
+        .unwrap()
 }
 
 fn parse_input(input: &str) -> (Vec<i64>, Vec<Vec<SeedsMap>>) {
@@ -39,9 +72,7 @@ fn parse_input(input: &str) -> (Vec<i64>, Vec<Vec<SeedsMap>>) {
         .nth(1)
         .unwrap()
         .split_whitespace()
-        .map(|n| {
-            n.parse::<i64>().unwrap()
-        })
+        .map(|n| n.parse::<i64>().unwrap())
         .collect();
 
     (
@@ -84,5 +115,10 @@ mod tests {
     #[test]
     fn part1() {
         assert_eq!(part1_logic(EXAMPLE), 35);
+    }
+
+    #[test]
+    fn part2() {
+        assert_eq!(part2_logic(EXAMPLE), 46)
     }
 }
