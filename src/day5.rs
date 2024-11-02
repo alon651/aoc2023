@@ -42,7 +42,6 @@ fn part2_logic(input: &str) -> i64 {
         })
         .collect();
 
-    seed_ranges.iter().for_each(|r|println!("{r:?}"));
     
     let mut next_layer_ranges: Vec<SeedsRange> = vec![];
     let mut next_ranges: Vec<SeedsRange> = vec![];
@@ -63,6 +62,7 @@ fn part2_logic(input: &str) -> i64 {
         seed_ranges.extend(next_layer_ranges);
         next_layer_ranges = vec![];
     }
+
     seed_ranges
         .iter()
         .min_by_key(|range| range.start)
@@ -71,8 +71,8 @@ fn part2_logic(input: &str) -> i64 {
 }
 
 fn is_overlapping(range: &SeedsRange, map: &SeedsMap) -> bool {
-    (range.start >= map.start_index && range.start <= map.end_index)
-        || (range.end >= map.start_index && range.end <= map.end_index)
+    !(range.end < map.start_index || range.start > map.end_index)
+
 }
 
 fn overlap(range: &SeedsRange, map: &SeedsMap) -> SeedsRange {
@@ -80,9 +80,6 @@ fn overlap(range: &SeedsRange, map: &SeedsMap) -> SeedsRange {
         start: cmp::max(range.start, map.start_index) + map.offset,
         end: cmp::min(range.end, map.end_index) + map.offset,
     };
-    if res.end ==0 || res.start==0{
-        println!("{range:?}{map:?}");
-    }
     res
 }
 
@@ -93,9 +90,6 @@ fn non_overlapping_parts(
     let overlap_start = cmp::max(range.start, map.start_index);
     let overlap_end = cmp::min(range.end, map.end_index);
 
-    if overlap_start == 0{
-        println!("{range:?}")
-    }
 
     let left_part = if range.start < overlap_start {
         Some(SeedsRange {
@@ -147,6 +141,9 @@ fn _slow(input: &str) -> i64 {
         .unwrap()
 }
 
+pub fn slow()->i64{
+    _slow(INPUT)
+}
 fn parse_input(input: &str) -> (Vec<i64>, Vec<Vec<SeedsMap>>) {
     let mut lines = input.split("\r\n\r\n");
 
