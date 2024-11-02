@@ -1,3 +1,5 @@
+use std::{cmp, mem::swap};
+
 const INPUT: &str = include_str!("../inputs/day5.txt");
 
 pub fn part1() -> i64 {
@@ -30,10 +32,93 @@ pub fn part2() -> i64 {
 }
 
 fn part2_logic(input: &str) -> i64 {
-    slow(input)
+    let (seeds_input, maps) = parse_input(input);
+
+    let mut seed_ranges: Vec<SeedsRange> = seeds_input
+        .chunks(2)
+        .map(|pair| SeedsRange {
+            start: pair[0],
+            end: pair[0] + pair[1] - 1,
+        })
+        .collect();
+
+    seed_ranges.iter().for_each(|r|println!("{r:?}"));
+    
+    let mut next_layer_ranges: Vec<SeedsRange> = vec![];
+    let mut next_ranges: Vec<SeedsRange> = vec![];
+    for mapping in maps {
+        for seedmap in &mapping {
+            for range in seed_ranges.drain(..) {
+                if is_overlapping(&range, seedmap) {
+                    next_layer_ranges.push(overlap(&range, seedmap));
+                    non_overlapping_parts(&range, seedmap).drain(..).for_each(|part| if let Some(part) = part{
+                        next_ranges.push(part);
+                    });
+                }else {
+                    next_ranges.push(range);
+                }
+            }
+            swap(&mut seed_ranges, &mut next_ranges); 
+        }
+        seed_ranges.extend(next_layer_ranges);
+        next_layer_ranges = vec![];
+    }
+    seed_ranges
+        .iter()
+        .min_by_key(|range| range.start)
+        .unwrap()
+        .start
 }
 
-fn slow(input: &str) -> i64{
+fn is_overlapping(range: &SeedsRange, map: &SeedsMap) -> bool {
+    (range.start >= map.start_index && range.start <= map.end_index)
+        || (range.end >= map.start_index && range.end <= map.end_index)
+}
+
+fn overlap(range: &SeedsRange, map: &SeedsMap) -> SeedsRange {
+    let res = SeedsRange {
+        start: cmp::max(range.start, map.start_index) + map.offset,
+        end: cmp::min(range.end, map.end_index) + map.offset,
+    };
+    if res.end ==0 || res.start==0{
+        println!("{range:?}{map:?}");
+    }
+    res
+}
+
+fn non_overlapping_parts(
+    range: &SeedsRange,
+    map: &SeedsMap,
+) -> Vec<Option<SeedsRange>> {
+    let overlap_start = cmp::max(range.start, map.start_index);
+    let overlap_end = cmp::min(range.end, map.end_index);
+
+    if overlap_start == 0{
+        println!("{range:?}")
+    }
+
+    let left_part = if range.start < overlap_start {
+        Some(SeedsRange {
+            start: range.start,
+            end: overlap_start - 1,
+        })
+    } else {
+        None
+    };
+
+    let right_part = if range.end > overlap_end {
+        Some(SeedsRange {
+            start: overlap_end + 1,
+            end: range.end,
+        })
+    } else {
+        None
+    };
+
+    vec![left_part, right_part]
+}
+
+fn _slow(input: &str) -> i64 {
     let (seeds_input, maps) = parse_input(input);
 
     let seeds: Vec<i64> = seeds_input
@@ -104,6 +189,12 @@ struct SeedsMap {
     start_index: i64,
     end_index: i64,
     offset: i64,
+}
+
+#[derive(Debug)]
+struct SeedsRange {
+    start: i64,
+    end: i64,
 }
 
 #[cfg(test)]
