@@ -10,8 +10,8 @@ where
     F: Fn() -> T,
     T: Display,
 {
-    let start_part_one = std::time::Instant::now();
-    let result_part_one = f();
-    let duration_part_one = start_part_one.elapsed();
-    println!("result: {}, Time: {:?}", result_part_one, duration_part_one);
+    let start = std::time::Instant::now();
+    let result = f();
+    let duration = start.elapsed();
+    println!("result: {}, Time: {:?}", result, duration);
 }
