@@ -1,121 +1,54 @@
 use std::{cmp, mem::swap};
 
 const INPUT: &str = include_str!("../inputs/day5.txt");
+type Number = i64;
 
-pub fn part1() -> i64 {
+pub fn part1() -> Number {
     part1_logic(INPUT)
 }
 
-fn part1_logic(input: &str) -> i64 {
-    let (seeds, maps) = parse_input(input);
+fn part1_logic(input: &str) -> Number {
+    let Guide {
+        seeds,
+        map_layers: maps,
+    } = parse_input(input);
 
     seeds
         .iter()
-        .map(|seed| {
-            let mut current = *seed;
-            maps.iter().for_each(|layer| {
-                if let Some(map) = layer
-                    .iter()
-                    .find(|map| map.start_index <= current && map.end_index >= current)
-                {
-                    current += map.offset;
-                }
-            });
-            current
-        })
+        .map(|&seed| process_seed(seed, &maps))
         .min()
         .unwrap()
 }
 
-pub fn part2() -> i64 {
+pub fn part2() -> Number {
     part2_logic(INPUT)
 }
 
-fn part2_logic(input: &str) -> i64 {
-    let (seeds_input, maps) = parse_input(input);
+fn part2_logic(input: &str) -> Number {
+    let Guide {
+        seeds: seeds_input,
+        map_layers: maps,
+    } = parse_input(input);
 
-    let mut seed_ranges: Vec<SeedsRange> = seeds_input
+    let seed_ranges: Vec<SeedsRange> = seeds_input
         .chunks(2)
-        .map(|pair| SeedsRange {
-            start: pair[0],
-            end: pair[0] + pair[1] - 1,
-        })
+        .map(|pair| SeedsRange::from_seed_pair(pair[0], pair[1]))
         .collect();
 
-    
-    let mut next_layer_ranges: Vec<SeedsRange> = vec![];
-    let mut next_ranges: Vec<SeedsRange> = vec![];
-    for mapping in maps {
-        for seedmap in &mapping {
-            for range in seed_ranges.drain(..) {
-                if is_overlapping(&range, seedmap) {
-                    next_layer_ranges.push(overlap(&range, seedmap));
-                    non_overlapping_parts(&range, seedmap).drain(..).for_each(|part| if let Some(part) = part{
-                        next_ranges.push(part);
-                    });
-                }else {
-                    next_ranges.push(range);
-                }
-            }
-            swap(&mut seed_ranges, &mut next_ranges); 
-        }
-        seed_ranges.extend(next_layer_ranges);
-        next_layer_ranges = vec![];
-    }
-
-    seed_ranges
+    process_ranges(seed_ranges, &maps)
         .iter()
-        .min_by_key(|range| range.start)
+        .map(|range| range.start)
+        .min()
         .unwrap()
-        .start
 }
 
-fn is_overlapping(range: &SeedsRange, map: &SeedsMap) -> bool {
-    !(range.end < map.start_index || range.start > map.end_index)
+fn _slow(input: &str) -> Number {
+    let Guide {
+        seeds: seeds_input,
+        map_layers: maps,
+    } = parse_input(input);
 
-}
-
-fn overlap(range: &SeedsRange, map: &SeedsMap) -> SeedsRange {
-    let res = SeedsRange {
-        start: cmp::max(range.start, map.start_index) + map.offset,
-        end: cmp::min(range.end, map.end_index) + map.offset,
-    };
-    res
-}
-
-fn non_overlapping_parts(
-    range: &SeedsRange,
-    map: &SeedsMap,
-) -> Vec<Option<SeedsRange>> {
-    let overlap_start = cmp::max(range.start, map.start_index);
-    let overlap_end = cmp::min(range.end, map.end_index);
-
-
-    let left_part = if range.start < overlap_start {
-        Some(SeedsRange {
-            start: range.start,
-            end: overlap_start - 1,
-        })
-    } else {
-        None
-    };
-
-    let right_part = if range.end > overlap_end {
-        Some(SeedsRange {
-            start: overlap_end + 1,
-            end: range.end,
-        })
-    } else {
-        None
-    };
-
-    vec![left_part, right_part]
-}
-
-fn _slow(input: &str) -> i64 {
-    let (seeds_input, maps) = parse_input(input);
-
-    let seeds: Vec<i64> = seeds_input
+    let seeds: Vec<Number> = seeds_input
         .chunks(2)
         .flat_map(|pair| match pair {
             [start, count] => (*start..start + count).collect::<Vec<_>>(),
@@ -129,6 +62,7 @@ fn _slow(input: &str) -> i64 {
             let mut current = *seed;
             maps.iter().for_each(|layer| {
                 if let Some(map) = layer
+                    .maps
                     .iter()
                     .find(|map| map.start_index <= current && map.end_index >= current)
                 {
@@ -141,57 +75,153 @@ fn _slow(input: &str) -> i64 {
         .unwrap()
 }
 
-pub fn slow()->i64{
+pub fn slow() -> Number {
     _slow(INPUT)
 }
-fn parse_input(input: &str) -> (Vec<i64>, Vec<Vec<SeedsMap>>) {
+fn parse_input(input: &str) -> Guide {
     let mut lines = input.split("\r\n\r\n");
 
-    let seeds: Vec<i64> = lines
+    let seeds: Vec<Number> = lines
         .next()
         .unwrap()
         .split(": ")
         .nth(1)
         .unwrap()
         .split_whitespace()
-        .map(|n| n.parse::<i64>().unwrap())
+        .map(|n| n.parse::<Number>().unwrap())
         .collect();
 
-    (
-        seeds,
-        lines
-            .map(|translation| {
-                translation
-                    .lines()
-                    .skip(1)
-                    .map(|line| {
-                        let seed_map = line
-                            .split_whitespace()
-                            .map(|i| i.parse().unwrap())
-                            .collect::<Vec<i64>>();
-                        SeedsMap {
-                            start_index: seed_map[1],
-                            end_index: (seed_map[1] + seed_map[2] - 1),
-                            offset: (seed_map[0] - seed_map[1]),
-                        }
-                    })
-                    .collect::<Vec<SeedsMap>>()
-            })
-            .collect(),
-    )
+    let map_layers = lines
+        .map(|translation| MapLayer {
+            maps: translation
+                .lines()
+                .skip(1)
+                .map(|line| {
+                    let seed_map = line
+                        .split_whitespace()
+                        .map(|i| i.parse().unwrap())
+                        .collect::<Vec<Number>>();
+                    SeedsMap {
+                        start_index: seed_map[1],
+                        end_index: (seed_map[1] + seed_map[2] - 1),
+                        offset: (seed_map[0] - seed_map[1]),
+                    }
+                })
+                .collect::<Vec<SeedsMap>>(),
+        })
+        .collect();
+
+    Guide { seeds, map_layers }
 }
 
 #[derive(Debug)]
 struct SeedsMap {
-    start_index: i64,
-    end_index: i64,
-    offset: i64,
+    start_index: Number,
+    end_index: Number,
+    offset: Number,
+}
+
+impl SeedsMap {
+    pub fn contains(&self, val: Number) -> bool {
+        self.start_index <= val && self.end_index >= val
+    }
 }
 
 #[derive(Debug)]
 struct SeedsRange {
-    start: i64,
-    end: i64,
+    start: Number,
+    end: Number,
+}
+
+impl SeedsRange {
+    pub fn is_overlapping(&self, map: &SeedsMap) -> bool {
+        !(self.end < map.start_index || self.start > map.end_index)
+    }
+
+    pub fn compute_overlap(&self, map: &SeedsMap) -> SeedsRange {
+        SeedsRange {
+            start: cmp::max(self.start, map.start_index) + map.offset,
+            end: cmp::min(self.end, map.end_index) + map.offset,
+        }
+    }
+
+    pub fn compute_non_overlapping(&self, map: &SeedsMap) -> Vec<Option<SeedsRange>> {
+        let overlap_start = cmp::max(self.start, map.start_index);
+        let overlap_end = cmp::min(self.end, map.end_index);
+
+        vec![
+            (self.start < overlap_start).then(|| SeedsRange {
+                start: self.start,
+                end: overlap_start - 1,
+            }),
+            (self.end > overlap_end).then(|| SeedsRange {
+                start: overlap_end + 1,
+                end: self.end,
+            }),
+        ]
+    }
+
+    pub fn from_seed_pair(start: Number, length: Number) -> Self {
+        Self {
+            start,
+            end: start + length - 1,
+        }
+    }
+}
+
+struct MapLayer {
+    maps: Vec<SeedsMap>,
+}
+
+impl MapLayer {
+    pub fn apply(&self, val: Number) -> Number {
+        self.maps
+            .iter()
+            .find(|map| map.contains(val))
+            .map_or(val, |map| val + map.offset)
+    }
+
+    pub fn apply_range(&self, ranges: Vec<SeedsRange>) -> Vec<SeedsRange> {
+        let mut result = Vec::new();
+        let mut unconverted = ranges;
+        let mut temp_ranges = Vec::new();
+
+        for range_map in &self.maps {
+            for range in unconverted.drain(..) {
+                if range.is_overlapping(range_map) {
+                    result.push(range.compute_overlap(&range_map));
+                    range
+                        .compute_non_overlapping(&range_map)
+                        .into_iter()
+                        .flatten()
+                        .for_each(|r| temp_ranges.push(r));
+                } else {
+                    temp_ranges.push(range);
+                }
+            }
+            swap(&mut unconverted, &mut temp_ranges);
+        }
+
+        result.extend(unconverted);
+        result
+    }
+}
+
+struct Guide {
+    seeds: Vec<Number>,
+    map_layers: Vec<MapLayer>,
+}
+
+fn process_seed(mut value: Number, maps: &[MapLayer]) -> Number {
+    for map in maps {
+        value = map.apply(value);
+    }
+    value
+}
+
+fn process_ranges(initial_ranges: Vec<SeedsRange>, maps: &[MapLayer]) -> Vec<SeedsRange> {
+    maps.iter()
+        .fold(initial_ranges, |ranges, map| map.apply_range(ranges))
 }
 
 #[cfg(test)]

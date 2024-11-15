@@ -3,6 +3,7 @@ use std::fmt::Display;
 fn main() {
     calculate_time(day5::part1);
     calculate_time(day5::part2);
+    calculate_time(day5::slow);
 }
 
 fn calculate_time<T, F>(f: F)
