@@ -50,34 +50,28 @@ fn _slow(input: &str) -> Number {
 
     let seeds: Vec<Number> = seeds_input
         .chunks(2)
-        .flat_map(|pair| match pair {
-            [start, count] => (*start..start + count).collect::<Vec<_>>(),
-            _ => vec![],
-        })
+        .flat_map(pair_to_range)
         .collect();
 
     seeds
         .iter()
-        .map(|seed| {
-            let mut current = *seed;
-            maps.iter().for_each(|layer| {
-                if let Some(map) = layer
-                    .maps
-                    .iter()
-                    .find(|map| map.start_index <= current && map.end_index >= current)
-                {
-                    current += map.offset;
-                }
-            });
-            current
-        })
+        .map(|&seed| process_seed(seed, &maps)
+        )
         .min()
         .unwrap()
+}
+
+fn pair_to_range(pair:&[Number])->Vec<Number>{
+    match pair {
+        [start, count] => (*start..start + count).collect::<Vec<_>>(),
+        _ => vec![],
+    }
 }
 
 pub fn slow() -> Number {
     _slow(INPUT)
 }
+
 fn parse_input(input: &str) -> Guide {
     let mut lines = input.split("\r\n\r\n");
 
@@ -91,27 +85,32 @@ fn parse_input(input: &str) -> Guide {
         .map(|n| n.parse::<Number>().unwrap())
         .collect();
 
-    let map_layers = lines
-        .map(|translation| MapLayer {
-            maps: translation
-                .lines()
-                .skip(1)
-                .map(|line| {
-                    let seed_map = line
-                        .split_whitespace()
-                        .map(|i| i.parse().unwrap())
-                        .collect::<Vec<Number>>();
-                    SeedsMap {
-                        start_index: seed_map[1],
-                        end_index: (seed_map[1] + seed_map[2] - 1),
-                        offset: (seed_map[0] - seed_map[1]),
-                    }
-                })
-                .collect::<Vec<SeedsMap>>(),
-        })
-        .collect();
+    let map_layers = lines.map(parse_map_layers).collect();
 
     Guide { seeds, map_layers }
+}
+
+fn parse_map_layers(mapping: &str) -> MapLayer {
+    MapLayer {
+        maps: mapping
+            .lines()
+            .skip(1)
+            .map(parse_maps)
+            .collect::<Vec<SeedsMap>>(),
+    }
+}
+
+fn parse_maps(line: &str) -> SeedsMap {
+    let seed_map = line
+        .split_whitespace()
+        .map(|i| i.parse().unwrap())
+        .collect::<Vec<Number>>();
+
+    SeedsMap {
+        start_index: seed_map[1],
+        end_index: (seed_map[1] + seed_map[2] - 1),
+        offset: (seed_map[0] - seed_map[1]),
+    }
 }
 
 #[derive(Debug)]
@@ -189,9 +188,9 @@ impl MapLayer {
         for range_map in &self.maps {
             for range in unconverted.drain(..) {
                 if range.is_overlapping(range_map) {
-                    result.push(range.compute_overlap(&range_map));
+                    result.push(range.compute_overlap(range_map));
                     range
-                        .compute_non_overlapping(&range_map)
+                        .compute_non_overlapping(range_map)
                         .into_iter()
                         .flatten()
                         .for_each(|r| temp_ranges.push(r));
